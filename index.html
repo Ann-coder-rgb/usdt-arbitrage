@@ -300,12 +300,12 @@
                                 <tbody className="divide-y divide-white/[0.03]">
                                     {calculations.levels.map((level, i) => (
                                         <tr key={i} className="hover:bg-white/[0.02] group transition-all duration-300">
-                                            <td className={`py-4 text-center ${uniformText} text-silver-300 font-black`}>{level.label}</td>
-                                            <td className={`py-4 text-center text-white ${uniformText}`}>{level.sellPrice}</td>
-                                            <td className={`py-4 text-center text-amber-500/90 ${uniformText} italic`}>{level.buyBackPrice}</td>
-                                            <td className={`py-4 text-center text-slate-400 ${uniformText}`}>{level.netTwd}</td>
-                                            <td className={`py-4 text-center text-cyan-400 ${uniformText}`}>+{level.profit}</td>
-                                            <td className="py-4 text-center">
+                                            <td className={`py-2 text-center ${uniformText} text-silver-300 font-black`}>{level.label}</td>
+                                            <td className={`py-2 text-center text-white ${uniformText}`}>{level.sellPrice}</td>
+                                            <td className={`py-2 text-center text-amber-500/90 ${uniformText} italic`}>{level.buyBackPrice}</td>
+                                            <td className={`py-2 text-center text-slate-400 ${uniformText}`}>{level.netTwd}</td>
+                                            <td className={`py-2 text-center text-cyan-400 ${uniformText}`}>+{level.profit}</td>
+                                            <td className="py-2 text-center">
                                                 <button 
                                                     onClick={() => handleCopy(level.sellPrice)}
                                                     className={`px-3 py-1 rounded border text-sm font-black uppercase transition-all ${
