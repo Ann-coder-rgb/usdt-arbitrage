@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>匯差套利終端儀表板</title>
+    <title>匯差套利儀表板</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💵</text></svg>">
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -302,7 +302,7 @@
                                         <tr key={i} className="hover:bg-white/[0.02] group transition-all duration-300">
                                             <td className={`py-2 text-center ${uniformText} text-silver-300 font-black`}>{level.label}</td>
                                             <td className={`py-2 text-center text-white ${uniformText}`}>{level.sellPrice}</td>
-                                            <td className={`py-2 text-center text-amber-500/90 ${uniformText} italic`}>{level.buyBackPrice}</td>
+                                            <td className={`py-2 text-center text-amber-500/90 ${uniformText}`}>{level.buyBackPrice}</td>
                                             <td className={`py-2 text-center text-slate-400 ${uniformText}`}>{level.netTwd}</td>
                                             <td className={`py-2 text-center text-cyan-400 ${uniformText}`}>+{level.profit}</td>
                                             <td className="py-2 text-center">
