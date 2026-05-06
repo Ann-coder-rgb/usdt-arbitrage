@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>匯差套利終端儀表板 V3.2.5</title>
+    <title>匯差套利終端儀表板</title>
     
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -21,7 +21,7 @@
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
             font-size: 0.8rem; 
             margin: 0;
-            overflow: hidden;
+            overflow: hidden; /* 確保全螢幕不產生捲軸 */
         }
         
         .custom-scrollbar::-webkit-scrollbar {
@@ -64,23 +64,11 @@
         const IconRefresh = ({ className }) => (
             <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
         );
-        const IconWallet = ({ className }) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
-        );
-        const IconCoins = ({ className }) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18.1"></path><path d="M7 6h2v4H7z"></path><path d="M17 12h2v4h-2z"></path></svg>
-        );
-        const IconPercent = ({ className }) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle></svg>
-        );
-        const IconShield = ({ className }) => (
-            <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-        );
 
         const App = () => {
             const [loading, setLoading] = useState(false);
             const [bgSyncing, setBgSyncing] = useState(false);
-            const [rates, setRates] = useState({ buy: 31.25, sell: 32.12, updateTime: '--:--:--' });
+            const [rates, setRates] = useState({ buy: 31.25, sell: 32.12, updateTime: '--:--' });
             const [bitoPrice, setBitoPrice] = useState(null);
             const [copyFeedback, setCopyFeedback] = useState(null);
             const [bitoTimer, setBitoTimer] = useState(8); 
@@ -88,12 +76,14 @@
             const [feeRate, setFeeRate] = useState(0.2); 
             const [priceFlash, setPriceFlash] = useState(false);
 
+            // API 金鑰：在 GitHub 上架時，請將 apiKey 替換為您的 Gemini API 金鑰
             const apiKey = ""; 
 
+            // 指數退避請求機制 (1s, 2s, 4s, 8s, 16s)
             const fetchWithRetry = async (url, options = {}, retries = 5, backoff = 1000) => {
                 try {
                     const response = await fetch(url, options);
-                    if (!response.ok) throw new Error(`Status: ${response.status}`);
+                    if (!response.ok) throw new Error(`HTTP 錯誤! 狀態碼: ${response.status}`);
                     return await response.json();
                 } catch (err) {
                     if (retries > 0) {
@@ -108,27 +98,36 @@
                 if (!isBackground) setLoading(true);
                 setBgSyncing(true);
                 try {
-                    const userQuery = "查詢台灣銀行美金『現金買入』與『現金賣出』匯率。";
-                    const systemPrompt = "Return JSON: {\"buy\": number, \"sell\": number}";
+                    const userQuery = "請幫我查詢台灣銀行最新美金現鈔的『買入』與『賣出』匯率數字是多少？";
+                    const systemPrompt = "你是一個專業的匯率數據抓取助手。請從搜尋結果中找出台灣銀行的美金現鈔買入與賣出價格。僅回傳一個 JSON 物件，格式如下：{\"buy\": 數字, \"sell\": 數字}。不要包含任何其他文字或解釋。";
+                    
                     const result = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: userQuery }] }],
                             systemInstruction: { parts: [{ text: systemPrompt }] },
-                            tools: [{ "google_search": {} }],
-                            generationConfig: { responseMimeType: "application/json" }
+                            tools: [{ "google_search": {} }]
                         })
                     });
-                    const data = JSON.parse(result.candidates?.[0]?.content?.parts?.[0]?.text);
+
+                    // 提取回傳文字並清理 Markdown 語法
+                    const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    const cleanedJsonText = textContent.replace(/```json|```/g, "").trim();
+                    const data = JSON.parse(cleanedJsonText);
+
                     if (data.buy && data.sell) {
                         setRates({ 
                             buy: data.buy, 
                             sell: data.sell, 
-                            updateTime: new Date().toLocaleTimeString('zh-TW', { hour12: false }) 
+                            updateTime: new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }) 
                         });
+                    } else {
+                        throw new Error("回傳格式不正確");
                     }
-                } catch (err) { console.error("同步失敗"); } finally { 
+                } catch (err) { 
+                    console.error("數據同步失敗原因:", err); 
+                } finally { 
                     setLoading(false);
                     setTimeout(() => setBgSyncing(false), 2000);
                 }
@@ -146,7 +145,7 @@
                         setBitoPrice(newPrice);
                         setBitoTimer(8);
                     }
-                } catch (err) { console.error("連線異常"); }
+                } catch (err) { console.error("幣託連線異常:", err); }
             }, [bitoPrice]);
 
             const calculations = useMemo(() => {
@@ -155,7 +154,6 @@
                 const feeDecimal = (parseFloat(feeRate) || 0) / 100;
                 const baseNet = (mid * amount) * (1 - feeDecimal);
 
-                // 新增 1% 級距方案
                 const levels = [1.01, 1.02, 1.03, 1.04, 1.05, 1.06].map(m => {
                     const targetSellPrice = mid * m;
                     const netTwdFromSell = (targetSellPrice * amount) * (1 - feeDecimal);
@@ -179,7 +177,7 @@
                 fetchBotRates();
                 fetchBitoPrice();
                 const bitoInterval = setInterval(fetchBitoPrice, 8000);
-                const botInterval = setInterval(() => fetchBotRates(true), 120000);
+                const botInterval = setInterval(() => fetchBotRates(true), 120000); // 2分鐘背景同步
                 const countdown = setInterval(() => setBitoTimer(prev => prev > 0 ? prev - 1 : 0), 1000);
                 return () => {
                     clearInterval(bitoInterval);
@@ -199,193 +197,144 @@
                 setTimeout(() => setCopyFeedback(null), 1000);
             };
 
-            const uniformText = "text-base font-bold tracking-tight transition-all duration-500"; 
-            const labelText = "text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed"; 
+            const uniformText = "text-sm md:text-base font-bold tracking-tight transition-all duration-500 text-center"; 
+            const labelText = "text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed text-center"; 
 
             return (
-                <div className="h-screen bg-black text-slate-300 font-mono overflow-hidden p-3 flex flex-col gap-3 selection:bg-silver-500/30">
+                <div className="h-screen bg-black text-slate-300 font-mono overflow-hidden p-2 flex flex-col gap-2 selection:bg-silver-500/30">
                     
-                    {/* 看板區域 - 置中與分行設計 */}
-                    <section className="bg-[#111] border border-white/10 rounded-lg p-3 flex items-center justify-between shadow-2xl relative overflow-hidden">
+                    {/* 頂部看板區域 */}
+                    <section className="bg-[#111] border border-white/10 rounded-lg p-2 md:p-3 flex items-center justify-between shadow-2xl relative overflow-hidden flex-shrink-0">
                         <div className="absolute bottom-0 left-0 h-[1px] bg-cyan-900 transition-all duration-1000" style={{ width: `${(bitoTimer/8)*100}%` }} />
                         
-                        <div className="flex items-center gap-3 border-r border-white/10 pr-6">
-                            <div className="relative">
-                               <IconCpu className={`w-5 h-5 ${bgSyncing ? 'text-cyan-400' : 'text-silver-400'} transition-colors duration-700`} />
-                            </div>
-                            <h1 className="text-base font-bold tracking-[0.2em] text-white">匯差套利終端</h1>
+                        <div className="flex items-center gap-3 border-r border-white/10 pr-4 md:pr-6">
+                            <IconCpu className={`w-4 h-4 md:w-5 md:h-5 ${bgSyncing ? 'text-cyan-400' : 'text-silver-400'} transition-colors duration-700`} />
+                            <h1 className="text-xs md:text-base font-bold tracking-[0.1em] text-white whitespace-nowrap">匯差套利</h1>
                         </div>
 
-                        <div className="flex flex-1 justify-around items-center px-6">
+                        <div className="flex flex-1 justify-around items-center px-4">
                             <div className="flex flex-col items-center">
                                 <span className={labelText}>幣託 USDT</span>
-                                <div className={`flex items-baseline gap-1 ${priceFlash ? 'scale-110' : 'scale-100'} transition-transform duration-300`}>
-                                    <span className={`${uniformText} ${priceFlash ? 'animate-price-flash' : 'text-white'}`}>
-                                        {bitoPrice?.toFixed(2) || '---'}
-                                    </span>
-                                    <span className="text-[9px] text-green-500 animate-pulse font-black ml-1 uppercase tracking-widest">Live</span>
-                                </div>
+                                <span className={`${uniformText} ${priceFlash ? 'animate-price-flash' : 'text-white'}`}>
+                                    {bitoPrice?.toFixed(2) || '---'}
+                                </span>
                             </div>
 
                             <div className="flex flex-col items-center">
-                                <span className={labelText}>市場溢價</span>
+                                <span className={labelText}>溢價</span>
                                 <span className={`${uniformText} ${parseFloat(calculations.premium) > 0 ? 'text-green-500' : 'text-red-500'}`}>
                                     {calculations.premium}%
                                 </span>
                             </div>
 
-                            <div className="flex flex-col items-center">
+                            <div className="hidden sm:flex flex-col items-center">
                                 <span className={labelText}>中價基準</span>
                                 <span className={`${uniformText} text-silver-400`}>{calculations.mid.toFixed(3)}</span>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4 border-l border-white/10 pl-6 text-right">
-                           <div className="flex flex-col items-end">
-                              <span className="text-[8px] text-slate-700 font-black uppercase tracking-tighter mb-1">同步於 {bitoTimer}S</span>
-                              <div className="flex gap-0.5">
-                                 {[1,2,3,4].map(i => (
-                                   <div key={i} className={`w-1 h-2 rounded-full ${bitoTimer >= i*2 ? 'bg-cyan-500' : 'bg-slate-800'} transition-colors`} />
-                                 ))}
-                              </div>
+                        <div className="flex items-center gap-2 border-l border-white/10 pl-4 text-right">
+                           <div className="hidden lg:flex flex-col items-end mr-3">
+                              <span className="text-[8px] text-slate-600 font-bold uppercase">NEXT SYNC: {bitoTimer}s</span>
                            </div>
-                           <button onClick={() => fetchBotRates()} className="p-1.5 hover:bg-white/5 rounded-md transition-all active:scale-90">
+                           <button onClick={() => fetchBotRates()} className="p-1 hover:bg-white/5 rounded-md transition-all active:scale-90">
                              <IconRefresh className={`w-4 h-4 text-slate-600 ${loading ? 'animate-spin text-white' : ''}`} />
                            </button>
                         </div>
                     </section>
 
-                    <main className="flex-1 grid grid-cols-12 gap-3 overflow-hidden">
-                        
-                        {/* 左側設定 */}
-                        <div className="col-span-3 flex flex-col gap-3 text-center">
-                            <section className="bg-[#111] border border-white/10 p-4 rounded-lg flex-1 flex flex-col gap-6">
-                                <div className="flex flex-col items-center gap-1 border-b border-white/5 pb-2">
-                                    <IconWallet className="w-4 h-4 text-slate-500" />
-                                    <h2 className={labelText}>參數設定</h2>
-                                </div>
-                                
-                                <div className="space-y-4">
-                                    <div className="flex flex-col items-center space-y-1.5 group">
-                                        <label className={labelText}>賣出數量 (USDT)</label>
-                                        <div className="relative w-full">
-                                            <input 
-                                                type="number" value={usdtAmount} 
-                                                onChange={e => setUsdtAmount(e.target.value)}
-                                                className="w-full bg-black border border-white/10 rounded-md p-2 text-center text-base font-bold text-white outline-none focus:border-cyan-500/50"
-                                            />
-                                            <IconCoins className="absolute left-2.5 top-2.5 w-4 h-4 opacity-10 group-hover:opacity-30 transition-opacity" />
-                                        </div>
-                                    </div>
+                    {/* 參數工具列 */}
+                    <section className="bg-[#111] border border-white/10 rounded-lg px-4 py-2 flex items-center justify-between shadow-lg flex-shrink-0">
+                        <div className="flex-1 grid grid-cols-4 md:flex md:items-center md:justify-around gap-4 md:gap-8 text-center">
+                            
+                            <div className="flex flex-col items-center">
+                                <span className={labelText}>數量 (USDT)</span>
+                                <input 
+                                    type="number" value={usdtAmount} 
+                                    onChange={e => setUsdtAmount(e.target.value)}
+                                    className="bg-black border border-white/10 rounded px-2 py-0.5 text-center text-sm font-bold text-white outline-none focus:border-cyan-500/50 w-24 md:w-32"
+                                />
+                            </div>
 
-                                    <div className="flex flex-col items-center space-y-1.5 group">
-                                        <label className={labelText}>交易費率 (%)</label>
-                                        <div className="relative w-full">
-                                            <input 
-                                                type="number" step="0.01" value={feeRate} 
-                                                onChange={e => setFeeRate(e.target.value)}
-                                                className="w-full bg-black border border-white/10 rounded-md p-2 text-center text-base font-bold text-slate-400 outline-none focus:border-cyan-500/50"
-                                            />
-                                            <IconPercent className="absolute left-2.5 top-2.5 w-4 h-4 opacity-10 group-hover:opacity-30 transition-opacity" />
-                                        </div>
-                                    </div>
+                            <div className="flex flex-col items-center">
+                                <span className={labelText}>費率 (%)</span>
+                                <input 
+                                    type="number" step="0.01" value={feeRate} 
+                                    onChange={e => setFeeRate(e.target.value)}
+                                    className="bg-black border border-white/10 rounded px-2 py-0.5 text-center text-sm font-bold text-slate-400 outline-none focus:border-cyan-500/50 w-16 md:w-20"
+                                />
+                            </div>
 
-                                    <div className="pt-4 border-t border-white/5 space-y-3">
-                                        <div className="flex flex-col items-center">
-                                            <span className={labelText}>台銀現鈔買入</span>
-                                            <span className={uniformText}>{rates.buy}</span>
-                                        </div>
-                                        <div className="flex flex-col items-center">
-                                            <span className={labelText}>台銀現鈔賣出</span>
-                                            <span className={uniformText}>{rates.sell}</span>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="flex flex-col items-center">
+                                <span className={labelText}>台銀買入</span>
+                                <span className={uniformText}>{rates.buy}</span>
+                            </div>
 
-                                <div className="mt-auto bg-black/50 p-3 rounded-md border border-white/5 flex flex-col items-center">
-                                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tighter">
-                                        最後同步 {rates.updateTime}
-                                    </span>
-                                </div>
-                            </section>
+                            <div className="flex flex-col items-center">
+                                <span className={labelText}>台銀賣出</span>
+                                <span className={uniformText}>{rates.sell}</span>
+                            </div>
+
                         </div>
+                    </section>
 
-                        {/* 右側表格 - 全面置中 */}
-                        <div className="col-span-9 flex flex-col gap-3 overflow-hidden">
-                            <div className="bg-[#111] border border-white/10 rounded-lg overflow-hidden flex-1 flex flex-col font-mono relative">
-                                <div className="px-5 py-2.5 bg-white/[0.02] border-b border-white/10 flex flex-col items-center">
-                                    <span className={labelText}>策略回補分析矩陣</span>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[9px] text-slate-500 italic uppercase tracking-widest">Base Return:</span>
-                                        <span className={`${uniformText} text-white`}>{Math.round(calculations.baseNet).toLocaleString()} TWD</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
-                                    <table className="w-full border-collapse">
-                                        <thead className="sticky top-0 bg-[#111] border-b border-white/10 z-10">
-                                            <tr className={labelText}>
-                                                <th className="py-4 text-center font-black">級距方案</th>
-                                                <th className="py-4 text-center font-black">分批賣出價</th>
-                                                <th className="py-4 text-center font-black text-amber-500/80">保本回補點</th>
-                                                <th className="py-4 text-center font-black text-slate-300">預估實收</th>
-                                                <th className="py-4 text-center font-black text-cyan-400">套利收益</th>
-                                                <th className="py-4 text-center font-black">指令</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-white/[0.03]">
-                                            {calculations.levels.map((level, i) => (
-                                                <tr key={i} className="hover:bg-white/[0.02] group transition-all duration-300">
-                                                    <td className={`py-4 text-center ${uniformText} text-silver-300`}>
-                                                        {level.label}
-                                                    </td>
-                                                    <td className={`py-4 text-center text-white ${uniformText}`}>
-                                                        {level.sellPrice}
-                                                    </td>
-                                                    <td className={`py-4 text-center text-amber-500/90 ${uniformText} italic`}>
-                                                        {level.buyBackPrice}
-                                                    </td>
-                                                    <td className={`py-4 text-center text-slate-400 ${uniformText}`}>
-                                                        {level.netTwd}
-                                                    </td>
-                                                    <td className={`py-4 text-center text-cyan-400 ${uniformText}`}>
-                                                        +{level.profit}
-                                                    </td>
-                                                    <td className="py-4 text-center">
-                                                        <button 
-                                                            onClick={() => handleCopy(level.sellPrice)}
-                                                            className={`px-3 py-1.5 rounded border text-[10px] font-black uppercase transition-all ${
-                                                                copyFeedback === level.sellPrice 
-                                                                ? 'bg-green-500/20 border-green-500/50 text-green-400' 
-                                                                : 'border-white/10 hover:border-white/40 text-slate-600 hover:text-white'
-                                                            }`}
-                                                        >
-                                                            {copyFeedback === level.sellPrice ? 'Done' : 'Copy'}
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div className="h-10 bg-[#111] border border-white/10 p-2 rounded-lg flex items-center justify-center opacity-40">
-                               <div className="flex items-center gap-2">
-                                 <IconShield className="w-3 h-3 text-green-900" />
-                                 <span className="text-[9px] uppercase tracking-[0.5em] font-black">Arbitrage Mode // Full Centered View</span>
-                               </div>
-                            </div>
+                    {/* 主策略矩陣 */}
+                    <main className="flex-1 bg-[#111] border border-white/10 rounded-lg overflow-hidden flex flex-col font-mono relative min-h-0 shadow-2xl">
+                        
+                        <div className="px-5 py-2 bg-white/[0.02] border-b border-white/10 flex items-center justify-center gap-4">
+                            <span className={labelText}>策略分析矩陣</span>
+                            <span className="text-[9px] text-slate-600 uppercase tracking-tighter">BASE_RETURN: <span className="text-white font-bold underline">{Math.round(calculations.baseNet).toLocaleString()} TWD</span></span>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar">
+                            <table className="w-full border-collapse">
+                                <thead className="sticky top-0 bg-[#111] border-b border-white/10 z-10 shadow-md">
+                                    <tr className={labelText}>
+                                        <th className="py-4 text-center">級距</th>
+                                        <th className="py-4 text-center">分批賣出價</th>
+                                        <th className="py-4 text-center text-amber-500/80">保本回補點</th>
+                                        <th className="py-4 text-center text-slate-300">預估實收</th>
+                                        <th className="py-4 text-center text-cyan-400">套利收益</th>
+                                        <th className="py-4 text-center px-2">指令</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/[0.03]">
+                                    {calculations.levels.map((level, i) => (
+                                        <tr key={i} className="hover:bg-white/[0.02] group transition-all duration-300">
+                                            <td className={`py-4 text-center ${uniformText} text-silver-300 font-black`}>{level.label}</td>
+                                            <td className={`py-4 text-center text-white ${uniformText}`}>{level.sellPrice}</td>
+                                            <td className={`py-4 text-center text-amber-500/90 ${uniformText} italic`}>{level.buyBackPrice}</td>
+                                            <td className={`py-4 text-center text-slate-400 ${uniformText}`}>{level.netTwd}</td>
+                                            <td className={`py-4 text-center text-cyan-400 ${uniformText}`}>+{level.profit}</td>
+                                            <td className="py-4 text-center">
+                                                <button 
+                                                    onClick={() => handleCopy(level.sellPrice)}
+                                                    className={`px-3 py-1 rounded border text-[10px] font-black uppercase transition-all ${
+                                                        copyFeedback === level.sellPrice 
+                                                        ? 'bg-green-500/20 border-green-500/50 text-green-400' 
+                                                        : 'border-white/10 hover:border-white/40 text-slate-600 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {copyFeedback === level.sellPrice ? 'DONE' : 'COPY'}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </main>
 
-                    <footer className="text-[10px] text-slate-800 flex justify-between items-center px-1 tracking-widest uppercase font-bold">
+                    <footer className="text-[9px] text-slate-800 flex justify-between items-center px-1 tracking-widest uppercase font-bold flex-shrink-0">
                         <div className="flex gap-4">
-                            <span>Auto-Monitor active</span>
-                            <span className="opacity-20">|</span>
-                            <span>Scale: 0.8X Noir</span>
+                            <span>V3.4.1 STABLE</span>
+                            <span className="opacity-10">|</span>
+                            <span>ENDPOINT_SECURED</span>
                         </div>
-                        <span>V3.2.5-STABLE // READY TO DEPLOY</span>
+                        <div className="flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-900 animate-pulse" />
+                            <span>SYNC_ACTIVE</span>
+                        </div>
                     </footer>
                 </div>
             );
