@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>匯差套利儀表板</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💵</text></svg>">
-    <!-- 引入元件庫 CDN -->
+    <title>匯差套利終端儀表板 V3.4.2</title>
+    
     <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -77,10 +76,9 @@
             const [feeRate, setFeeRate] = useState(0.2); 
             const [priceFlash, setPriceFlash] = useState(false);
 
-            // API 金鑰：在 GitHub 上架時，請將 apiKey 替換為您的 Gemini API 金鑰
+            // API 金鑰
             const apiKey = ""; 
 
-            // 指數退避請求機制 (1s, 2s, 4s, 8s, 16s)
             const fetchWithRetry = async (url, options = {}, retries = 5, backoff = 1000) => {
                 try {
                     const response = await fetch(url, options);
@@ -112,7 +110,6 @@
                         })
                     });
 
-                    // 提取回傳文字並清理 Markdown 語法
                     const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
                     const cleanedJsonText = textContent.replace(/```json|```/g, "").trim();
                     const data = JSON.parse(cleanedJsonText);
@@ -178,7 +175,7 @@
                 fetchBotRates();
                 fetchBitoPrice();
                 const bitoInterval = setInterval(fetchBitoPrice, 8000);
-                const botInterval = setInterval(() => fetchBotRates(true), 120000); // 2分鐘背景同步
+                const botInterval = setInterval(() => fetchBotRates(true), 120000);
                 const countdown = setInterval(() => setBitoTimer(prev => prev > 0 ? prev - 1 : 0), 1000);
                 return () => {
                     clearInterval(bitoInterval);
@@ -198,7 +195,8 @@
                 setTimeout(() => setCopyFeedback(null), 1000);
             };
 
-            const uniformText = "text-sm md:text-base font-bold tracking-tight transition-all duration-500 text-center"; 
+            // 調整後的統一字體大小：與數量 (USDT) 相同使用 text-sm
+            const uniformText = "text-sm font-bold tracking-tight transition-all duration-500 text-center"; 
             const labelText = "text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed text-center"; 
 
             return (
@@ -236,7 +234,7 @@
 
                         <div className="flex items-center gap-2 border-l border-white/10 pl-4 text-right">
                            <div className="hidden lg:flex flex-col items-end mr-3">
-                              <span className="text-[8px] text-slate-600 font-bold uppercase">NEXT SYNC: {bitoTimer}s</span>
+                              <span className="text-[8px] text-slate-600 font-bold uppercase tracking-tighter">NEXT: {bitoTimer}s</span>
                            </div>
                            <button onClick={() => fetchBotRates()} className="p-1 hover:bg-white/5 rounded-md transition-all active:scale-90">
                              <IconRefresh className={`w-4 h-4 text-slate-600 ${loading ? 'animate-spin text-white' : ''}`} />
@@ -284,7 +282,7 @@
                         
                         <div className="px-5 py-2 bg-white/[0.02] border-b border-white/10 flex items-center justify-center gap-4">
                             <span className={labelText}>策略分析矩陣</span>
-                            <span className="text-[9px] text-slate-600 uppercase tracking-tighter">BASE_RETURN: <span className="text-white font-bold underline">{Math.round(calculations.baseNet).toLocaleString()} TWD</span></span>
+                            <span className="text-[9px] text-slate-600 uppercase tracking-tighter">BASE_RETURN: <span className="text-white font-bold underline text-sm">{Math.round(calculations.baseNet).toLocaleString()} TWD</span></span>
                         </div>
                         
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -310,7 +308,7 @@
                                             <td className="py-4 text-center">
                                                 <button 
                                                     onClick={() => handleCopy(level.sellPrice)}
-                                                    className={`px-3 py-1 rounded border text-[10px] font-black uppercase transition-all ${
+                                                    className={`px-3 py-1 rounded border text-sm font-black uppercase transition-all ${
                                                         copyFeedback === level.sellPrice 
                                                         ? 'bg-green-500/20 border-green-500/50 text-green-400' 
                                                         : 'border-white/10 hover:border-white/40 text-slate-600 hover:text-white'
@@ -328,7 +326,7 @@
 
                     <footer className="text-[9px] text-slate-800 flex justify-between items-center px-1 tracking-widest uppercase font-bold flex-shrink-0">
                         <div className="flex gap-4">
-                            <span>V3.4.1 STABLE</span>
+                            <span>V3.4.2 STABLE</span>
                             <span className="opacity-10">|</span>
                             <span>ENDPOINT_SECURED</span>
                         </div>
