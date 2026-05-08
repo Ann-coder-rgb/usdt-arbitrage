@@ -3,52 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>匯差套利儀表板</title>
+    <title>匯差套利儀表板 - Bito & MAX</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💵</text></svg>">
-    <!-- 引入 Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 引入 React 18 與 Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* 全局 80% 比例縮放與黑銀風格 */
         body {
             background-color: black;
             color: #cbd5e1;
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
             font-size: 0.8rem; 
             margin: 0;
-            overflow: hidden; /* 確保全螢幕不產生捲軸 */
+            overflow: hidden;
         }
         
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
 
-        input::-webkit-outer-spin-button,
-        input::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-        @keyframes subtle-flash {
-    0% { opacity: 1; color: #01a1ea; } /* 改為幣託藍 */
-    50% { opacity: 0.7; color: #fff; }
-    100% { opacity: 1; color: #01a1ea; }
-}
-        .animate-price-flash {
-            animation: subtle-flash 0.8s ease-in-out;
+        @keyframes flash-bito {
+            0% { opacity: 1; color: #01a1ea; }
+            50% { opacity: 0.5; color: #fff; }
+            100% { opacity: 1; color: #01a1ea; }
         }
+        @keyframes flash-max {
+            0% { opacity: 1; color: #2962ff; }
+            50% { opacity: 0.5; color: #fff; }
+            100% { opacity: 1; color: #2962ff; }
+        }
+        .animate-bito-flash { animation: flash-bito 0.8s ease-in-out; }
+        .animate-max-flash { animation: flash-max 0.8s ease-in-out; }
     </style>
 </head>
 <body>
@@ -57,7 +46,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback } = React;
 
-        // --- 內嵌 SVG 圖示組件 ---
         const IconCpu = ({ className }) => (
             <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>
         );
@@ -69,20 +57,24 @@
             const [loading, setLoading] = useState(false);
             const [bgSyncing, setBgSyncing] = useState(false);
             const [rates, setRates] = useState({ buy: 31.25, sell: 32.12, updateTime: '--:--' });
+            
             const [bitoPrice, setBitoPrice] = useState(null);
-            const [copyFeedback, setCopyFeedback] = useState(null);
-            const [bitoTimer, setBitoTimer] = useState(8); 
+            const [maxPrice, setMaxPrice] = useState(null);
+            
+            const [syncTimer, setSyncTimer] = useState(8); 
             const [usdtAmount, setUsdtAmount] = useState(1000); 
             const [feeRate, setFeeRate] = useState(0.2); 
-            const [priceFlash, setPriceFlash] = useState(false);
+            
+            const [bitoFlash, setBitoFlash] = useState(false);
+            const [maxFlash, setMaxFlash] = useState(false);
+            const [copyFeedback, setCopyFeedback] = useState(null);
 
-            // API 金鑰
             const apiKey = ""; 
 
-            const fetchWithRetry = async (url, options = {}, retries = 5, backoff = 1000) => {
+            const fetchWithRetry = async (url, options = {}, retries = 3, backoff = 1000) => {
                 try {
                     const response = await fetch(url, options);
-                    if (!response.ok) throw new Error(`HTTP 錯誤! 狀態碼: ${response.status}`);
+                    if (!response.ok) throw new Error(`Status: ${response.status}`);
                     return await response.json();
                 } catch (err) {
                     if (retries > 0) {
@@ -98,7 +90,7 @@
                 setBgSyncing(true);
                 try {
                     const userQuery = "請幫我查詢台灣銀行最新美金現鈔的『買入』與『賣出』匯率數字是多少？";
-                    const systemPrompt = "你是一個專業的匯率數據抓取助手。請從搜尋結果中找出台灣銀行的美金現鈔買入與賣出價格。僅回傳一個 JSON 物件，格式如下：{\"buy\": 數字, \"sell\": 數字}。不要包含任何其他文字或解釋。";
+                    const systemPrompt = "僅回傳 JSON：{\"buy\": 數字, \"sell\": 數字}。";
                     
                     const result = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
                         method: 'POST',
@@ -120,11 +112,9 @@
                             sell: data.sell, 
                             updateTime: new Date().toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' }) 
                         });
-                    } else {
-                        throw new Error("回傳格式不正確");
                     }
                 } catch (err) { 
-                    console.error("數據同步失敗原因:", err); 
+                    console.error("BOT Sync Failed:", err); 
                 } finally { 
                     setLoading(false);
                     setTimeout(() => setBgSyncing(false), 2000);
@@ -137,14 +127,50 @@
                     if (data?.data?.lastPrice) {
                         const newPrice = parseFloat(data.data.lastPrice);
                         if (newPrice !== bitoPrice) {
-                            setPriceFlash(true);
-                            setTimeout(() => setPriceFlash(false), 800);
+                            setBitoFlash(true);
+                            setTimeout(() => setBitoFlash(false), 800);
                         }
                         setBitoPrice(newPrice);
-                        setBitoTimer(8);
                     }
-                } catch (err) { console.error("幣託連線異常:", err); }
+                } catch (err) { console.error("Bito Connection Error:", err); }
             }, [bitoPrice]);
+
+            const fetchMaxPrice = useCallback(async () => {
+                const targetUrl = 'https://max-api.maicoin.com/api/v2/tickers/usdttwd';
+                
+                // 代理清單：依序嘗試
+                const proxyProviders = [
+                    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                    (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+                ];
+
+                for (const getProxyUrl of proxyProviders) {
+                    try {
+                        const response = await fetch(getProxyUrl(targetUrl));
+                        if (!response.ok) continue;
+                        const data = await response.json();
+                        
+                        if (data?.last) {
+                            const newPrice = parseFloat(data.last);
+                            if (newPrice !== maxPrice) {
+                                setMaxFlash(true);
+                                setTimeout(() => setMaxFlash(false), 800);
+                            }
+                            setMaxPrice(newPrice);
+                            return; // 成功獲取則跳出循環
+                        }
+                    } catch (err) {
+                        console.warn("MAX Proxy Attempt Failed:", err.message);
+                    }
+                }
+                console.error("MAX Price Sync: All proxies failed.");
+            }, [maxPrice]);
+
+            const fetchAllExchanges = useCallback(() => {
+                fetchBitoPrice();
+                fetchMaxPrice();
+                setSyncTimer(8);
+            }, [fetchBitoPrice, fetchMaxPrice]);
 
             const calculations = useMemo(() => {
                 const mid = (parseFloat(rates.buy) + parseFloat(rates.sell)) / 2;
@@ -167,22 +193,24 @@
                     };
                 });
 
-                const premium = bitoPrice ? (((bitoPrice / mid) - 1) * 100).toFixed(2) : '--';
-                return { mid, levels, baseNet, premium };
-            }, [rates, usdtAmount, feeRate, bitoPrice]);
+                const bitoPremium = bitoPrice ? (((bitoPrice / mid) - 1) * 100).toFixed(2) : '--';
+                const maxPremium = maxPrice ? (((maxPrice / mid) - 1) * 100).toFixed(2) : '--';
+                
+                return { mid, levels, baseNet, bitoPremium, maxPremium };
+            }, [rates, usdtAmount, feeRate, bitoPrice, maxPrice]);
 
             useEffect(() => {
                 fetchBotRates();
-                fetchBitoPrice();
-                const bitoInterval = setInterval(fetchBitoPrice, 8000);
+                fetchAllExchanges();
+                const exchangeInterval = setInterval(fetchAllExchanges, 8000);
                 const botInterval = setInterval(() => fetchBotRates(true), 120000);
-                const countdown = setInterval(() => setBitoTimer(prev => prev > 0 ? prev - 1 : 0), 1000);
+                const countdown = setInterval(() => setSyncTimer(prev => prev > 0 ? prev - 1 : 0), 1000);
                 return () => {
-                    clearInterval(bitoInterval);
+                    clearInterval(exchangeInterval);
                     clearInterval(botInterval);
                     clearInterval(countdown);
                 };
-            }, [fetchBitoPrice]);
+            }, [fetchAllExchanges]);
 
             const handleCopy = (val) => {
                 const el = document.createElement('textarea');
@@ -195,7 +223,6 @@
                 setTimeout(() => setCopyFeedback(null), 1000);
             };
 
-            // 調整後的統一字體大小：與數量 (USDT) 相同使用 text-sm
             const uniformText = "text-sm font-bold tracking-tight transition-all duration-500 text-center"; 
             const labelText = "text-[10px] md:text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed text-center"; 
 
@@ -204,41 +231,49 @@
                     
                     {/* 頂部看板區域 */}
                     <section className="bg-[#111] border border-white/10 rounded-lg p-2 md:p-3 flex items-center justify-between shadow-2xl relative overflow-hidden flex-shrink-0">
-                        <div className="absolute bottom-0 left-0 h-[1px] bg-cyan-900 transition-all duration-1000" style={{ width: `${(bitoTimer/8)*100}%` }} />
+                        <div className="absolute bottom-0 left-0 h-[1px] bg-cyan-900 transition-all duration-1000" style={{ width: `${(syncTimer/8)*100}%` }} />
                         
                         <div className="flex items-center gap-3 border-r border-white/10 pr-4 md:pr-6">
-                            <IconCpu className={`w-4 h-4 md:w-5 md:h-5 ${bgSyncing ? 'text-cyan-400' : 'text-silver-400'} transition-colors duration-700`} />
-                            <h1 className="text-xs md:text-base font-bold tracking-[0.1em] text-white whitespace-nowrap">匯差套利</h1>
+                            <IconCpu className={`w-4 h-4 md:w-5 md:h-5 ${bgSyncing ? 'text-cyan-400' : 'text-slate-500'} transition-colors duration-700`} />
+                            <h1 className="text-xs md:text-base font-bold tracking-[0.1em] text-white whitespace-nowrap">ARBITRAGE</h1>
                         </div>
 
-                        <div className="flex flex-1 justify-around items-center px-4">
+                        <div className="flex flex-1 justify-around items-center px-2 md:px-4 gap-2">
+                            {/* BitoPro */}
                             <div className="flex flex-col items-center">
-                                <span className={labelText}>幣託 USDT</span>
-                               <span className={`${uniformText} ${priceFlash ? 'animate-price-flash' : 'text-[#01a1ea]'}`}>
-    {bitoPrice?.toFixed(2) || '---'}
-</span>
-                            </div>
-
-                            <div className="flex flex-col items-center">
-                                <span className={labelText}>溢價</span>
-                                <span className={`${uniformText} ${parseFloat(calculations.premium) > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                    {calculations.premium}%
+                                <span className={labelText}>BITOPRO USDT</span>
+                                <span className={`${uniformText} ${bitoFlash ? 'animate-bito-flash' : 'text-[#01a1ea]'}`}>
+                                    {bitoPrice?.toFixed(2) || '---'}
+                                </span>
+                                <span className={`text-[10px] font-bold ${parseFloat(calculations.bitoPremium) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {calculations.bitoPremium}%
                                 </span>
                             </div>
 
-                            <div className="hidden sm:flex flex-col items-center">
-                                <span className={labelText}>中價基準</span>
-                                <span className={`${uniformText} text-silver-400`}>{calculations.mid.toFixed(3)}</span>
+                            {/* MAX */}
+                            <div className="flex flex-col items-center">
+                                <span className={labelText}>MAX USDT</span>
+                                <span className={`${uniformText} ${maxFlash ? 'animate-max-flash' : 'text-[#2962ff]'}`}>
+                                    {maxPrice?.toFixed(2) || '---'}
+                                </span>
+                                <span className={`text-[10px] font-bold ${parseFloat(calculations.maxPremium) > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {calculations.maxPremium}%
+                                </span>
+                            </div>
+
+                            <div className="hidden sm:flex flex-col items-center border-l border-white/5 pl-4">
+                                <span className={labelText}>台銀中價</span>
+                                <span className={`${uniformText} text-slate-400`}>{calculations.mid.toFixed(3)}</span>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-2 border-l border-white/10 pl-4 text-right">
-                           <div className="hidden lg:flex flex-col items-end mr-3">
-                              <span className="text-[8px] text-slate-600 font-bold uppercase tracking-tighter">NEXT: {bitoTimer}s</span>
-                           </div>
-                           <button onClick={() => fetchBotRates()} className="p-1 hover:bg-white/5 rounded-md transition-all active:scale-90">
-                             <IconRefresh className={`w-4 h-4 text-slate-600 ${loading ? 'animate-spin text-white' : ''}`} />
-                           </button>
+                            <div className="hidden lg:flex flex-col items-end mr-3">
+                                <span className="text-[8px] text-slate-600 font-bold uppercase tracking-tighter">REFRESH: {syncTimer}s</span>
+                            </div>
+                            <button onClick={() => fetchBotRates()} className="p-1 hover:bg-white/5 rounded-md transition-all active:scale-90">
+                                <IconRefresh className={`w-4 h-4 text-slate-600 ${loading ? 'animate-spin text-white' : ''}`} />
+                            </button>
                         </div>
                     </section>
 
@@ -279,10 +314,9 @@
 
                     {/* 主策略矩陣 */}
                     <main className="flex-1 bg-[#111] border border-white/10 rounded-lg overflow-hidden flex flex-col font-mono relative min-h-0 shadow-2xl">
-                        
                         <div className="px-5 py-2 bg-white/[0.02] border-b border-white/10 flex items-center justify-center">
-    <span className={labelText}>策略分析矩陣</span>
-</div>
+                            <span className={labelText}>策略分析矩陣 (對比台銀基準)</span>
+                        </div>
                         
                         <div className="flex-1 overflow-y-auto custom-scrollbar">
                             <table className="w-full border-collapse">
@@ -307,7 +341,7 @@
                                             <td className="py-2 text-center">
                                                 <button 
                                                     onClick={() => handleCopy(level.sellPrice)}
-                                                    className={`px-3 py-1 rounded border text-sm font-black uppercase transition-all ${
+                                                    className={`px-3 py-1 rounded border text-[10px] font-black uppercase transition-all ${
                                                         copyFeedback === level.sellPrice 
                                                         ? 'bg-green-500/20 border-green-500/50 text-green-400' 
                                                         : 'border-white/10 hover:border-white/40 text-slate-600 hover:text-white'
@@ -325,13 +359,13 @@
 
                     <footer className="text-[9px] text-slate-800 flex justify-between items-center px-1 tracking-widest uppercase font-bold flex-shrink-0">
                         <div className="flex gap-4">
-                            <span>V3.4.2 STABLE</span>
+                            <span>V3.5.3 STABLE</span>
                             <span className="opacity-10">|</span>
-                            <span>ENDPOINT_SECURED</span>
+                            <span>MULTI_PROXY_FAILOVER_ACTIVE</span>
                         </div>
                         <div className="flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-900 animate-pulse" />
-                            <span>SYNC_ACTIVE</span>
+                            <span>DATA_FEED_ACTIVE</span>
                         </div>
                     </footer>
                 </div>
